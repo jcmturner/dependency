@@ -106,6 +106,76 @@ func TestVersions_Less(t *testing.T) {
 		{"2.3.0-v200706262000", "2.3.0-v200706262130"}, // org.eclipse:emf:2.3.0-v200706262000
 		// org.eclipse.wst.common_core.feature_2.0.0.v200706041905-7C78EK9E_EkMNfNOd2d8qq
 		{"2.0.0.v200706041905-7C78EK9E_EkMNfNOd2d8qq", "2.0.0.v200706041906-7C78EK9E_EkMNfNOd2d8qq"},
+		{"1", "2"},
+		{"1.5", "2"},
+		{"1", "2.5"},
+		{"1.0", "1.1"},
+		{"1.1", "1.2"},
+		{"1.0.0", "1.1"},
+		{"1.1", "1.2.0"},
+
+		{"1.1.2.alpha1", "1.1.2"},
+		{"1.1.2.alpha1", "1.1.2.beta1"},
+		{"1.1.2.beta1", "1.2"},
+
+		{"1.0-alpha-1", "1.0"},
+		{"1.0-alpha-1", "1.0-alpha-2"},
+		{"1.0-alpha-2", "1.0-alpha-15"},
+		{"1.0-alpha-1", "1.0-beta-1"},
+
+		{"1.0-beta-1", "1.0-SNAPSHOT"},
+		{"1.0-SNAPSHOT", "1.0"},
+		{"1.0-alpha-1-SNAPSHOT", "1.0-alpha-1"},
+
+		{"1.0", "1.0-1"},
+		{"1.0-1", "1.0-2"},
+		{"2.0", "2.0-1"},
+		{"2.0.0", "2.0-1"},
+		{"2.0-1", "2.0.1"},
+
+		{"2.0.1-klm", "2.0.1-lmn"},
+		{"2.0.1", "2.0.1-xyz"},
+		{"2.0.1-xyz-1", "2.0.1-1-xyz"},
+
+		{"2.0.1", "2.0.1-123"},
+		{"2.0.1-xyz", "2.0.1-123"},
+
+		{"1.2.3-10000000000", "1.2.3-10000000001"},
+		{"1.2.3-1", "1.2.3-10000000001"},
+		{"2.3.0-v200706262000", "2.3.0-v200706262130"}, // org.eclipse:emf:2.3.0-v200706262000
+		// org.eclipse.wst.common_core.feature_2.0.0.v200706041905-7C78EK9E_EkMNfNOd2d8qq
+		{"2.0.0.v200706041905-7C78EK9E_EkMNfNOd2d8qq", "2.0.0.v200706041906-7C78EK9E_EkMNfNOd2d8qq"},
+
+		{"1-SNAPSHOT", "2-SNAPSHOT"},
+		{"1.5-SNAPSHOT", "2-SNAPSHOT"},
+		{"1-SNAPSHOT", "2.5-SNAPSHOT"},
+		{"1.0-SNAPSHOT", "1.1-SNAPSHOT"},
+		{"1.1-SNAPSHOT", "1.2-SNAPSHOT"},
+		{"1.0.0-SNAPSHOT", "1.1-SNAPSHOT"},
+		{"1.1-SNAPSHOT", "1.2.0-SNAPSHOT"},
+
+		// { "1.0-alpha-1-SNAPSHOT", "1.0-SNAPSHOT" },
+		{"1.0-alpha-1-SNAPSHOT", "1.0-alpha-2-SNAPSHOT"},
+		{"1.0-alpha-1-SNAPSHOT", "1.0-beta-1-SNAPSHOT"},
+
+		{"1.0-beta-1-SNAPSHOT", "1.0-SNAPSHOT-SNAPSHOT"},
+		{"1.0-SNAPSHOT-SNAPSHOT", "1.0-SNAPSHOT"},
+		{"1.0-alpha-1-SNAPSHOT-SNAPSHOT", "1.0-alpha-1-SNAPSHOT"},
+
+		{"1.0-SNAPSHOT", "1.0-1-SNAPSHOT"},
+		{"1.0-1-SNAPSHOT", "1.0-2-SNAPSHOT"},
+		// assertVersionEqual( "2.0-0-SNAPSHOT", "2.0-SNAPSHOT" },
+		{"2.0-SNAPSHOT", "2.0-1-SNAPSHOT"},
+		{"2.0.0-SNAPSHOT", "2.0-1-SNAPSHOT"},
+		{"2.0-1-SNAPSHOT", "2.0.1-SNAPSHOT"},
+
+		{"2.0.1-klm-SNAPSHOT", "2.0.1-lmn-SNAPSHOT"},
+		// { "2.0.1-xyz-SNAPSHOT", "2.0.1-SNAPSHOT" },
+		{"2.0.1-SNAPSHOT", "2.0.1-123-SNAPSHOT"},
+		{"2.0.1-xyz-SNAPSHOT", "2.0.1-123-SNAPSHOT"},
+		{"1.0-RC1", "1.0-SNAPSHOT"},
+		{"1.0-rc1", "1.0-SNAPSHOT"},
+		{"1.0-rc-1", "1.0-SNAPSHOT"},
 	}
 	for _, test := range tests {
 		i, err := NewVersion(test.lesser)

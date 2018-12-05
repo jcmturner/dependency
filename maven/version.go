@@ -204,7 +204,6 @@ func (v Versions) Less(i, j int) bool {
 				return true
 			}
 			return false
-
 		} else {
 			// ".qualifier" < "-qualifier" < "-number" < ".number"
 			if !ip.fields[fi].numeric && jp.fields[fi].numeric {
