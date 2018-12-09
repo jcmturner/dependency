@@ -190,3 +190,176 @@ func TestVersions_Less(t *testing.T) {
 			test.lesser, test.greater, i, j)
 	}
 }
+
+func TestParseRequirements(t *testing.T) {
+	tests := []struct {
+		req string
+	}{
+		//1.0: "Soft" requirement on 1.0 (just a recommendation, if it matches all other ranges for the dependency)
+		//[1.0]: "Hard" requirement on 1.0
+		//(,1.0]: x <= 1.0
+		//[1.2,1.3]: 1.2 <= x <= 1.3
+		//[1.0,2.0): 1.0 <= x < 2.0
+		//[1.5,): x >= 1.5
+		//(,1.0],[1.2,): x <= 1.0 or x >= 1.2; multiple sets are comma-separated
+		//(,1.1),(1.1,)
+		{"1.0"},
+		{"[1.0]"},
+		{"(,1.0]"},
+		{"[1.2,1.3]"},
+		{"[1.0,2.0)"},
+		{"[1.5,)"},
+		{"(,1.0],[1.2,)"},
+		{"(,1.1),(1.1,)"},
+	}
+	for _, test := range tests {
+		c, err := parseRequirement(test.req)
+		if err != nil {
+			t.Errorf("could not parse requirement %s: %v", test.req, err)
+		}
+		assert.True(t, len(c) > 0)
+		//t.Logf("%s\n%+v\n\n", test.req, c)
+	}
+}
+
+func TestVersion_Equal(t *testing.T) {
+	tests := []struct {
+		v string
+		w string
+	}{
+		{"1", "1"},
+		{"1", "1.0"},
+		{"1", "1.0.0"},
+		{"1.0", "1.0.0"},
+		{"1", "1-0"},
+		{"1", "1.0-0"},
+		{"1.0", "1.0-0"},
+		// no separator between number and character
+		{"1a", "1-a"},
+		{"1a", "1.0-a"},
+		{"1a", "1.0.0-a"},
+		{"1.0a", "1-a"},
+		{"1.0.0a", "1-a"},
+		{"1x", "1-x"},
+		{"1x", "1.0-x"},
+		{"1x", "1.0.0-x"},
+		{"1.0x", "1-x"},
+		{"1.0.0x", "1-x"},
+
+		// aliases
+		{"1ga", "1"},
+		{"1final", "1"},
+		{"1cr", "1rc"},
+
+		// special "aliases" a, b and m for alpha, beta and milestone
+		{"1a1", "1-alpha-1"},
+		{"1b2", "1-beta-2"},
+		{"1m3", "1-milestone-3"},
+
+		// case insensitive
+		{"1X", "1x"},
+		{"1A", "1a"},
+		{"1B", "1b"},
+		{"1M", "1m"},
+		{"1Ga", "1"},
+		{"1GA", "1"},
+		{"1Final", "1"},
+		{"1FinaL", "1"},
+		{"1FINAL", "1"},
+		{"1Cr", "1Rc"},
+		{"1cR", "1rC"},
+		{"1m3", "1Milestone3"},
+		{"1m3", "1MileStone3"},
+		{"1m3", "1MILESTONE3"},
+	}
+	for _, test := range tests {
+		v, err := NewVersion(test.v)
+		if err != nil {
+			t.Errorf("could not create version from %s: %v", test.v, err)
+		}
+		w, err := NewVersion(test.w)
+		if err != nil {
+			t.Errorf("could not create version from %s: %v", test.w, err)
+		}
+		assert.True(t, v.Equal(w), "%s not evaluated as equal to %s", test.v, test.w)
+	}
+}
+
+func TestVersion_Satisfies(t *testing.T) {
+	tests := []struct {
+		req       string
+		version   string
+		satisfies bool
+	}{
+		{"[1.0]", "1.0", true},
+		{"[1.0]", "0.9", false},
+		{"[1.0]", "1.1", false},
+		{"(,1.0]", "0.5", true},
+		{"(,1.0]", "1.0", true},
+		{"(,1.0]", "1.1", false},
+		{"(,1.0)", "0.9", true},
+		{"(,1.0)", "1.0", false},
+		{"(,1.0)", "1.1", false},
+		{"(1.0,)", "1.0", false},
+		{"(1.0,)", "1.1", true},
+		{"(1.0,)", "2.0", true},
+		{"[1.0,)", "1.0", true},
+		{"[1.0,)", "1.1", true},
+		{"[1.0,)", "2.0", true},
+		{"[1.2,1.3]", "1.2", true},
+		{"[1.2,1.3]", "1.2.5", true},
+		{"[1.2,1.3]", "1.3", true},
+		{"[1.2,1.3]", "1.1", false},
+		{"[1.2,1.3]", "1.4", false},
+		{"(1.2,1.3)", "1.2", false},
+		{"(1.2,1.3)", "1.2.5", true},
+		{"(1.2,1.3)", "1.3", false},
+		{"(1.2,1.3)", "1.1", false},
+		{"(1.2,1.3)", "1.4", false},
+		{"(1.2,1.3]", "1.2", false},
+		{"(1.2,1.3]", "1.2.5", true},
+		{"(1.2,1.3]", "1.3", true},
+		{"(1.2,1.3]", "1.1", false},
+		{"(1.2,1.3]", "1.4", false},
+		{"(,1.0],[1.2,)", "0.5", true},
+		{"(,1.0],[1.2,)", "1.0", true},
+		{"(,1.0],[1.2,)", "1.1", false},
+		{"(,1.0],[1.2,)", "1.2", true},
+		{"(,1.0],[1.2,)", "1.3", true},
+		{"(,1.1),(1.1,)", "0.5", true},
+		{"(,1.1),(1.1,)", "1.0", true},
+		{"(,1.1),(1.1,)", "1.1", false},
+		{"(,1.1),(1.1,)", "1.1.1", true},
+		{"(,1.1),(1.1,)", "2.0", true},
+	}
+	for _, test := range tests {
+		v, err := NewVersion(test.version)
+		if err != nil {
+			t.Errorf("error creating version %s: %v", test.version, err)
+		}
+		assert.Equal(t, test.satisfies, v.Satisfies(test.req), "should version %s satisfy %s? %t ; but test does not agree.", test.version, test.req, test.satisfies)
+	}
+}
+
+func TestParseRequirement_Invalid(t *testing.T) {
+	tests := []string{
+		"(1.0)",
+		"[1.0)",
+		"(1.0]",
+		"(1.0,1.0]",
+		"[1.0,1.0)",
+		"(1.0,1.0)",
+		"[1.1,1.0]",
+		"[1.0,1.2),1.3",
+		// overlap
+		//"[1.0,1.2),(1.1,1.3]" ,
+		//// overlap
+		//"[1.1,1.3),(1.0,1.2]" ,
+		//// ordering
+		//"(1.1,1.2],[1.0,1.1)" ,
+	}
+	for _, test := range tests {
+		_, err := parseRequirement(test)
+		assert.NotNil(t, err, "did not error on invalid requirement: %s", test)
+	}
+}

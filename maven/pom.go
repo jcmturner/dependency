@@ -165,24 +165,3 @@ func (p *POM) Type() components.Type {
 func (p *POM) Class() components.Class {
 	return components.ClassLib
 }
-
-//func (d *Dependency) Satisfied(v string) bool {
-/*Dependencies' version element define version requirements, used to compute effective dependency version. Version requirements have the following syntax:
-1.0: "Soft" requirement on 1.0 (just a recommendation, if it matches all other ranges for the dependency)
-[1.0]: "Hard" requirement on 1.0
-(,1.0]: x <= 1.0
-[1.2,1.3]: 1.2 <= x <= 1.3
-[1.0,2.0): 1.0 <= x < 2.0
-[1.5,): x >= 1.5
-(,1.0],[1.2,): x <= 1.0 or x >= 1.2; multiple sets are comma-separated
-(,1.1),(1.1,): this excludes 1.1 (for example if it is known not to work in combination with this library)*/
-
-// If [n then n <= x
-// if n] then x <= n
-
-// if (n then n < x
-// if n) then x < n
-
-//vs := version.ParseSemantic(v)
-
-//}

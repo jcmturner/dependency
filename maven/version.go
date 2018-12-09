@@ -1,6 +1,7 @@
 package maven
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -130,6 +131,7 @@ func trimNullSuffix(s string) string {
 	return strings.TrimSuffix(s, ".")
 }
 
+// String returns a normalised version string
 func (v *Version) String() string {
 	s := strconv.Itoa(v.major)
 	for _, f := range v.fields {
@@ -142,20 +144,12 @@ func (v *Version) String() string {
 	return s
 }
 
-// Versions is a sortable slice of maven versions
-type Versions []Version
-
-func (v Versions) Len() int {
-	return len(v)
-}
-func (v Versions) Swap(i, j int) {
-	v[i], v[j] = v[j], v[i]
-}
-func (v Versions) Less(i, j int) bool {
-	if v[i].major != v[j].major {
-		return v[i].major < v[j].major
+// Less indicates if the Version v is less than the Version w
+func (v Version) Less(w Version) bool {
+	if v.major != w.major {
+		return v.major < w.major
 	}
-	ip, jp := padForComparison(v[i], v[j])
+	ip, jp := padForComparison(v, w)
 	for fi := range ip.fields {
 		if ip.fields[fi].dot == jp.fields[fi].dot {
 			// older -> newer
@@ -222,6 +216,49 @@ func (v Versions) Less(i, j int) bool {
 	return false
 }
 
+func (v *Version) Equal(w Version) bool {
+	if v.major != w.major {
+		return false
+	}
+	vp, wp := padForComparison(*v, w)
+	for i := range vp.fields {
+		if vp.fields[i].dot != wp.fields[i].dot {
+			return false
+		}
+		if vp.fields[i].numeric != wp.fields[i].numeric {
+			return false
+		}
+		if vp.fields[i].numeric {
+			if vp.fields[i].numericValue != wp.fields[i].numericValue {
+				return false
+			}
+		} else {
+			vstr := strings.ToLower(vp.fields[i].value)
+			wstr := strings.ToLower(wp.fields[i].value)
+			t := map[string]string{
+				"alpha":     "a",
+				"beta":      "b",
+				"milestone": "m",
+				"rc":        "cr",
+				"final":     "",
+				"ga":        "",
+			}
+			if s, ok := t[vstr]; ok {
+				vstr = s
+			}
+			if s, ok := t[wstr]; ok {
+				wstr = s
+			}
+			if vstr != wstr {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// padForComparison stretches the shorter version by padding with enough "null" values with matching prefix to have the
+// same length as the longer one. Padded "null" values depend on the prefix of the other version: 0 for '.', "" for '-'.
 func padForComparison(v, w Version) (Version, Version) {
 	if len(w.fields) == len(v.fields) {
 		return v, w
@@ -250,4 +287,169 @@ func padForComparison(v, w Version) (Version, Version) {
 		w.fields = append(w.fields, vfield{dot: v.fields[i].dot, numeric: numeric, value: val})
 	}
 	return v, w
+}
+
+// Versions is a sortable slice of maven versions.
+type Versions []Version
+
+// Len returns the length of the Versions slice. Required to satisfy the sort interface.
+func (v Versions) Len() int {
+	return len(v)
+}
+
+// Swap elements in the Versions slice. Required to satisfy the sort interface.
+func (v Versions) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
+}
+
+// Less indicates if the Version at position i is less (older) than the element at position j.
+// Required to satisfy the sort interface.
+func (v Versions) Less(i, j int) bool {
+	return v[i].Less(v[j])
+}
+
+//Version requirements have the following syntax:
+//
+//1.0: "Soft" requirement on 1.0 (just a recommendation, if it matches all other ranges for the dependency)
+//[1.0]: "Hard" requirement on 1.0
+//(,1.0]: x <= 1.0
+//[1.2,1.3]: 1.2 <= x <= 1.3
+//[1.0,2.0): 1.0 <= x < 2.0
+//[1.5,): x >= 1.5
+//(,1.0],[1.2,): x <= 1.0 or x >= 1.2; multiple sets are comma-separated
+//(,1.1),(1.1,): this excludes 1.1 (for example if it is known not to work in combination with this library)
+
+// If [n then n <= x
+// if n] then x <= n
+
+// if (n then n < x
+// if n) then x < n
+
+// Invalid combinations:
+// curved brackets with only one number
+// curved bracket with same number twice
+// first number greater than 2nd
+// numbers not in brackets with comma
+
+type condition struct {
+	openBracketSquare  bool
+	closeBracketSquare bool
+	lower              Version
+	upper              Version
+	undefLower         bool // lower is undefined
+	undefUpper         bool // upper is undefined
+}
+
+func parseRequirement(s string) (conds []condition, err error) {
+	i := strings.IndexAny(s, "[]()")
+	if i == -1 {
+		if strings.Contains(s, ",") {
+			err = errors.New("invalid version requirements")
+			return
+		}
+		// there are no brackets
+		var c condition
+		c.lower, err = NewVersion(s)
+		if err != nil {
+			err = fmt.Errorf("could not parse version condition %s: %v", s, err)
+			return
+		}
+		c.upper = c.lower
+		conds = append(conds, c)
+		return
+	}
+	idx := regexp.MustCompile(`[\)\]\(\[]`).FindAllStringIndex(s, -1)
+	if idx[0][0] != 0 || len(s) > idx[len(idx)-1][1] {
+		// there are characters outside of brackets. eg [1.0,1.2),1.3 or 0.9,[1.0,1.2)
+		err = errors.New("invalid version requirements")
+		return
+	}
+	for i := range idx {
+		if i%2 == 0 {
+			continue
+		}
+		f := idx[i-1][1]
+		l := idx[i][0]
+		//if l < len(s)-1 {
+		//	l++
+		//}
+		c := condition{
+			openBracketSquare:  string(s[f-1]) == "[",
+			closeBracketSquare: string(s[l]) == "]",
+		}
+		v := strings.Split(s[f:l], ",")
+		if len(v) == 1 {
+			c.lower, err = NewVersion(v[0])
+			if err != nil {
+				err = fmt.Errorf("could not parse lower condition version %s: %v", v[0], err)
+				return
+			}
+			c.upper = c.lower
+		} else {
+			if v[0] != "" {
+				c.lower, err = NewVersion(v[0])
+				if err != nil {
+					err = fmt.Errorf("could not parse lower condition version %s: %v", v[0], err)
+					return
+				}
+			} else {
+				c.undefLower = true
+			}
+			if v[1] != "" {
+				c.upper, err = NewVersion(v[1])
+				if err != nil {
+					err = fmt.Errorf("could not parse upper condition version %s: %v", v[1], err)
+					return
+				}
+			} else {
+				c.undefUpper = true
+			}
+		}
+		if !c.undefUpper && !c.undefLower && c.upper.Less(c.lower) {
+			err = errors.New("invalid version requirements")
+			return
+		}
+		if (!c.closeBracketSquare || !c.openBracketSquare) && c.upper.Equal(c.lower) {
+			// curved brackets with only one number
+			// curved bracket with same number twice
+			err = errors.New("invalid version requirements")
+			return
+		}
+		conds = append(conds, c)
+	}
+	return
+}
+
+func (v Version) Satisfies(r string) bool {
+	conds, err := parseRequirement(r)
+	if err != nil {
+		return false
+	}
+	for _, c := range conds {
+		var ls, us bool
+		if c.undefLower {
+			ls = true
+		} else {
+			if c.lower.Less(v) {
+				ls = true
+			}
+			if c.openBracketSquare && v.Equal(c.lower) {
+				ls = true
+			}
+		}
+		if c.undefUpper {
+			us = true
+		} else {
+			if v.Less(c.upper) {
+				us = true
+			}
+			if c.closeBracketSquare && v.Equal(c.upper) {
+				us = true
+			}
+		}
+		if ls && us {
+			return true
+		}
+	}
+	return false
 }
