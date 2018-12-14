@@ -35,6 +35,7 @@ type Project struct {
 	Name         string       `xml:"name"`
 	Licenses     []License    `xml:"licenses>license"`
 	Dependencies []Dependency `xml:"dependencies>dependency"`
+	Repositories []Repository `xml:"repositories>repository"`
 }
 
 type License struct {
@@ -50,6 +51,21 @@ type Dependency struct {
 	Type       string `xml:"type"`
 	Scope      string `xml:"scope"`
 	Optional   bool   `xml:"optional"`
+}
+
+type Repository struct {
+	ID        string     `xml:"id"`
+	Name      string     `xml:"name"`
+	URL       string     `xml:"url"`
+	Layout    string     `xml:"layout"`
+	Snapshots RepoPolicy `xml:"snapshots"`
+	Releases  RepoPolicy `xml:"releases"`
+}
+
+type RepoPolicy struct {
+	Enabled        bool   `xml:"enabled"`
+	UpdatePolicy   string `xml:"updatePolicy"`
+	ChecksumPolicy string `xml:"checksumPolicy"`
 }
 
 func RepoPOM(repo, groupID, artifactID, version string) (p Project, err error) {
